@@ -7,7 +7,8 @@ OBJECTS_DIR = obj
 
 QT += opengl
 QT += network
-QT += declarative
+QT += quick
+QT += quickwidgets
 
 
 #### App sources ####
@@ -542,17 +543,17 @@ lua {
 }
 
 macx {
-    # Always enable QTKit support on Mac
-    message("Building with QTKit support for video")
+    # QTKit support disabled - deprecated by Apple
+    # message("Building with QTKit support for video")
 
-    DEFINES += QTKIT_SUPPORT=1
-    QMAKE_LFLAGS += -framework QTKit -framework Cocoa
+    # DEFINES += QTKIT_SUPPORT=1
+    # QMAKE_LFLAGS += -framework QTKit -framework Cocoa
 
-    HEADERS += \
-        src/video/VideoEncoder.h
+    # HEADERS += \
+    #     src/video/VideoEncoder.h
 
-    OBJECTIVE_SOURCES += \
-        src/video/VideoEncoder.mm
+    # OBJECTIVE_SOURCES += \
+    #     src/video/VideoEncoder.mm
 }
 
 storedeploy {

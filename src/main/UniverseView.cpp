@@ -18,7 +18,11 @@
 
 #include <cmath>
 
-#include <QGLWidget>
+#include <QWidget>
+#include <QOpenGLWidget>
+#include <QSurfaceFormat>
+#include <QVBoxLayout>
+#include <QPainter>
 
 #include <vesta/OGLHeaders.h>
 #include "UniverseView.h"
@@ -107,9 +111,9 @@
 #include <QLocale>
 #include <QPinchGesture>
 
-#include <QDeclarativeEngine>
-#include <QDeclarativeComponent>
-#include <QDeclarativeContext>
+#include <QQmlEngine>
+#include <QQmlComponent>
+#include <QQmlContext>
 
 using namespace vesta;
 using namespace Eigen;
@@ -341,13 +345,13 @@ static PlanetographicCoordHemi getPlanetographicCoordinate(const Vector3d& posit
 }
 
 
-class UniverseGLWidget : public QGLWidget
+class UniverseGLWidget : public QOpenGLWidget
 {
     //Q_OBJECT
 
 public:
-    UniverseGLWidget(QWidget* parent, UniverseRenderer* renderer, const QGLFormat& format) :
-        QGLWidget(format, parent),
+    UniverseGLWidget(QWidget* parent, UniverseRenderer* renderer) :
+        QOpenGLWidget(parent),
         m_renderer(renderer)
     {
         setAttribute(Qt::WA_PaintOnScreen);
@@ -362,10 +366,8 @@ public:
     }
 
 
-    virtual void initializeGL()
+    virtual void initializeGL() override
     {
-        QGLWidget::initializeGL();
-
         // Assume that the parent is a UniverseView and call it to
         // initialize resources.
         if (dynamic_cast<UniverseView*>(parent()))
@@ -380,7 +382,7 @@ private:
 
 
 UniverseView::UniverseView(QWidget *parent, Universe* universe, UniverseCatalog* catalog) :
-    QDeclarativeView(parent),
+    QWidget(parent),
     m_mouseMovement(0),
     m_lastDoubleClickTime(0.0),
     m_mouseClickEventProcessed(false),
@@ -418,8 +420,10 @@ UniverseView::UniverseView(QWidget *parent, Universe* universe, UniverseCatalog*
     m_surfaceFeatureLabelsVisible(false),
     m_centerIndicatorVisible(true),
     m_gotoObjectTime(6.0),
+#if FFMPEG_SUPPORT || QTKIT_SUPPORT
     m_videoEncoder(NULL),
     m_videoRecordingStartTime(0.0),
+#endif
     m_timeDisplay(TimeDisplay_UTC),
     m_wireframe(false),
     m_captureNextImage(false),
@@ -456,25 +460,27 @@ UniverseView::UniverseView(QWidget *parent, Universe* universe, UniverseCatalog*
         m_antialiasingSamples = std::max(1, std::min(MaxAntialiasingSampleCount, settings.value("AntialiasingSamples", 1).toInt()));
     }
 
-    QGLFormat format = QGLFormat::defaultFormat();
+    QSurfaceFormat format;
+    format.setDepthBufferSize(24);
     if (m_antialiasingSamples > 1)
     {
-        format.setSampleBuffers(true);
         format.setSamples(m_antialiasingSamples);
     }
     format.setSwapInterval(1); // sync to vertical retrace
 
-    UniverseGLWidget* glWidget = new UniverseGLWidget(this, m_renderer, format);
-    glWidget->updateGL();
-    setViewport(glWidget);
+    m_glWidget = new UniverseGLWidget(this, m_renderer);
+    m_glWidget->setFormat(format);
+    
+    // Set up layout to contain the OpenGL widget
+    QVBoxLayout* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(m_glWidget);
+    setLayout(layout);
 
     initializeObserver();
     initializeSkyLayers();
 
-    setBackgroundBrush(Qt::transparent);
-    setResizeMode(SizeRootObjectToView);
-
-    scene()->setBackgroundBrush(Qt::NoBrush);
+    // Background is handled by OpenGL context
 
     // Initialize the base time that will be used as a reference for calculating
     // the elapsed time.
@@ -532,8 +538,9 @@ UniverseView::font(FontRole role) const
 void
 UniverseView::initializeDeclarativeUi(const QString& qmlFileName)
 {
-    setSource(QUrl::fromLocalFile(qmlFileName));
-    connect(engine(), SIGNAL(quit()), QCoreApplication::instance(), SLOT(quit()));
+    // QML loading not available - using QWidget approach
+    // setSource(QUrl::fromLocalFile(qmlFileName));
+    // connect(engine(), SIGNAL(quit()), QCoreApplication::instance(), SLOT(quit()));
 }
 
 
@@ -869,16 +876,16 @@ UniverseView::setEarthMapMonth(int month)
 void UniverseView::paintEvent(QPaintEvent* /* event */)
 {
     // Make the viewport's GL context current
-    dynamic_cast<QGLWidget*>(viewport())->makeCurrent();
+    m_glWidget->makeCurrent();
 
     // Make sure that we've initialized our GL resources
     if (!m_glInitialized)
     {
         m_glInitialized = true;
-        dynamic_cast<QGLWidget*>(viewport())->updateGL();
+        m_glWidget->update();
     }
 
-    QPainter painter(viewport());
+    QPainter painter(m_glWidget);
 
     // Save the state of the painter
     glPushAttrib(GL_ALL_ATTRIB_BITS);
@@ -919,7 +926,7 @@ void UniverseView::paintEvent(QPaintEvent* /* event */)
 
     // Draw the user interface
     QRectF viewRect(0.0f, 0.0f, width(), height());
-    scene()->render(&painter, viewRect, viewRect);
+    // QML scene rendering not available in QWidget
 
     // The painter automatically calls swapBuffers
     painter.end();
@@ -1550,7 +1557,7 @@ void UniverseView::paintGL()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     // Enable multisampling when we have a multisample render target
-    if (qobject_cast<QGLWidget*>(viewport())->format().samples() > 1)// && GLEW_ARB_multisample)
+    if (m_glWidget->format().samples() > 1)// && GLEW_ARB_multisample)
     {
         glEnable(GL_MULTISAMPLE_ARB);
     }
@@ -1760,7 +1767,7 @@ void UniverseView::resizeGL(int width, int height)
 
 void UniverseView::mousePressEvent(QMouseEvent *event)
 {
-    QDeclarativeView::mousePressEvent(event);
+    QWidget::mousePressEvent(event);
 
     m_lastMousePosition = event->pos();
     m_mouseMovement = 0;
@@ -1770,7 +1777,7 @@ void UniverseView::mousePressEvent(QMouseEvent *event)
 void UniverseView::mouseReleaseEvent(QMouseEvent* event)
 {
     setMouseClickEventProcessed(true);
-    QDeclarativeView::mouseReleaseEvent(event);
+    QWidget::mouseReleaseEvent(event);
     if (m_mouseClickEventProcessed)
     {
         return;
@@ -1831,7 +1838,7 @@ void UniverseView::mouseReleaseEvent(QMouseEvent* event)
 
 void UniverseView::mouseDoubleClickEvent(QMouseEvent* event)
 {
-    QDeclarativeView::mouseDoubleClickEvent(event);
+    QWidget::mouseDoubleClickEvent(event);
 
     if (event->button() == Qt::LeftButton)
     {
@@ -1854,7 +1861,7 @@ void UniverseView::mouseDoubleClickEvent(QMouseEvent* event)
 void UniverseView::mouseMoveEvent(QMouseEvent *event)
 {
     setMouseMoveEventProcessed(true);
-    QDeclarativeView::mouseMoveEvent(event);
+    QWidget::mouseMoveEvent(event);
     if (m_mouseMoveEventProcessed)
     {
         return;
@@ -1939,7 +1946,7 @@ void UniverseView::mouseMoveEvent(QMouseEvent *event)
 
 void UniverseView::wheelEvent(QWheelEvent* event)
 {
-    QDeclarativeView::wheelEvent(event);
+    QWidget::wheelEvent(event);
     if (event->isAccepted())
     {
         // Event was eaten by QML
@@ -1964,11 +1971,7 @@ void UniverseView::wheelEvent(QWheelEvent* event)
 void
 UniverseView::keyPressEvent(QKeyEvent* event)
 {
-    if (scene()->focusItem() && scene()->focusItem()->hasFocus())
-    {
-        QDeclarativeView::keyPressEvent(event);
-        return;
-    }
+    // Handle key press events directly - no QML focus handling needed
 
     switch (event->key())
     {
@@ -1994,11 +1997,7 @@ UniverseView::keyPressEvent(QKeyEvent* event)
 void
 UniverseView::keyReleaseEvent(QKeyEvent* event)
 {
-    if (scene()->focusItem() && scene()->focusItem()->hasFocus())
-    {
-        QDeclarativeView::keyReleaseEvent(event);
-        return;
-    }
+    // Handle key release events directly - no QML focus handling needed
 
     switch (event->key())
     {
@@ -2066,9 +2065,9 @@ UniverseView::event(QEvent* e)
             // Save the focus state for when the next focus in event arrives. We need
             // to do some special handling to prevent Qt from always setting the focus
             // back to an item in the declarative view.
-            m_sceneHadFocus = scene()->hasFocus() && scene()->focusItem() != NULL;
+            // No QML scene focus handling needed
         }
-        return QDeclarativeView::event(e);
+        return QWidget::event(e);
     }
 }
 
@@ -2118,7 +2117,7 @@ UniverseView::contextMenuEvent(QContextMenuEvent* event)
     if (body)
     {
         BodyObject* o = new BodyObject(body);
-        QDeclarativeEngine::setObjectOwnership(o, QDeclarativeEngine::JavaScriptOwnership);
+        // QML object ownership not available - using QWidget approach
         emit contextMenuTriggered(event->pos().x(), event->pos().y(), o);
 
         return;
@@ -2306,7 +2305,7 @@ UniverseView::contextMenuEvent(QContextMenuEvent* event)
 void
 UniverseView::focusOutEvent(QFocusEvent* event)
 {
-    QDeclarativeView::focusOutEvent(event);
+    QWidget::focusOutEvent(event);
 }
 
 
@@ -2319,11 +2318,11 @@ UniverseView::focusInEvent(QFocusEvent* event)
     // UniverseView.
     if (m_sceneHadFocus)
     {
-        QDeclarativeView::focusInEvent(event);
+        QWidget::focusInEvent(event);
     }
     else
     {
-        QAbstractScrollArea::focusInEvent(event);
+        QWidget::focusInEvent(event);
     }
 }
 
@@ -2601,12 +2600,14 @@ UniverseView::tick()
         setSimulationTime(m_simulationTime + dt * timeScale());
     }
 
+#if FFMPEG_SUPPORT || QTKIT_SUPPORT
     if (m_videoEncoder)
     {
         // If we're recording video, notify any listeners that the length has
         // changed.
         emit recordedVideoLengthChanged(recordedVideoLength());
     }
+#endif
 
     if (m_rollLeft)
     {
@@ -2681,7 +2682,7 @@ UniverseView::tick()
 
     constrainViewerPosition(MaximumDistanceFromSun);
 
-    viewport()->update();
+    update();
 
     if (m_markers)
     {
@@ -3584,6 +3585,7 @@ UniverseView::setInfoText(bool enable)
 }
 
 
+#if FFMPEG_SUPPORT || QTKIT_SUPPORT
 void
 UniverseView::startVideoRecording(QVideoEncoder* encoder)
 {
@@ -3599,8 +3601,10 @@ UniverseView::finishVideoRecording()
     m_videoEncoder = NULL;
     emit recordingVideoChanged();
 }
+#endif
 
 
+#if FFMPEG_SUPPORT || QTKIT_SUPPORT
 double
 UniverseView::recordedVideoLength() const
 {
@@ -3613,12 +3617,13 @@ UniverseView::recordedVideoLength() const
         return 0.0;
     }
 }
+#endif
 
 
 QImage
 UniverseView::grabFrameBuffer(bool withAlpha)
 {
-    return dynamic_cast<QGLWidget*>(viewport())->grabFrameBuffer(withAlpha);
+    return m_glWidget->grabFramebuffer();
 }
 
 
@@ -3670,7 +3675,7 @@ UniverseView::findObject()
     // Show the QML find object widget
     // This function will be unnecessary once more of the UI moves into QML
     QVariant returnedValue;
-    QMetaObject::invokeMethod(rootObject(), "showFindObject", Q_RETURN_ARG(QVariant, returnedValue));
+    // QML method invocation not available - using QWidget approach
 }
 
 
@@ -3849,7 +3854,7 @@ BodyObject*
 UniverseView::getSelectedBody() const
 {
     BodyObject* o = new BodyObject(m_selectedBody.ptr());
-    QDeclarativeEngine::setObjectOwnership(o, QDeclarativeEngine::JavaScriptOwnership);
+    // QML object ownership not available - using QWidget approach
     return o;
 }
 
@@ -3872,7 +3877,7 @@ BodyObject*
 UniverseView::getCentralBody() const
 {
     BodyObject* o = new BodyObject(m_observer->center());
-    QDeclarativeEngine::setObjectOwnership(o, QDeclarativeEngine::JavaScriptOwnership);
+    // QML object ownership not available - using QWidget approach
     return o;
 }
 
@@ -3952,7 +3957,7 @@ UniverseView::createBodyDirectionVisualizer(BodyObject* from, BodyObject* target
     arrow->setLabelText(target->body()->name());
 
     VisualizerObject* o = new VisualizerObject(arrow);
-    QDeclarativeEngine::setObjectOwnership(o, QDeclarativeEngine::JavaScriptOwnership);
+    // QML object ownership not available - using QWidget approach
     return o;
 }
 

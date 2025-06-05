@@ -81,7 +81,9 @@ public slots:
     void reverseTime();
     void about();
     void saveScreenShot();
+#if FFMPEG_SUPPORT || QTKIT_SUPPORT
     void recordVideo();
+#endif
     void plotTrajectory();
     void plotTrajectoryObserver();
     void setStarStyle(QAction* action);

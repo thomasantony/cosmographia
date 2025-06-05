@@ -1,0 +1,5 @@
+.vscode/
+obj/
+build/
+Claude.md
+Makefile

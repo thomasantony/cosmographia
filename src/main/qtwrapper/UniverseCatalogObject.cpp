@@ -16,7 +16,7 @@
 
 #include "UniverseCatalogObject.h"
 #include <vesta/Arc.h>
-#include <QDeclarativeEngine>
+#include <QQmlEngine>
 #include <QDebug>
 #include <algorithm>
 
@@ -70,7 +70,7 @@ BodyObject*
 UniverseCatalogObject::getEarth() const
 {
     BodyObject* o = new BodyObject(m_catalog->find("Earth"));
-    QDeclarativeEngine::setObjectOwnership(o, QDeclarativeEngine::JavaScriptOwnership);
+    QQmlEngine::setObjectOwnership(o, QQmlEngine::JavaScriptOwnership);
     return o;
 }
 
@@ -79,7 +79,7 @@ BodyObject*
 UniverseCatalogObject::getSun() const
 {
     BodyObject* o = new BodyObject(m_catalog->find("Sun"));
-    QDeclarativeEngine::setObjectOwnership(o, QDeclarativeEngine::JavaScriptOwnership);
+    QQmlEngine::setObjectOwnership(o, QQmlEngine::JavaScriptOwnership);
     return o;
 }
 
@@ -91,7 +91,7 @@ UniverseCatalogObject::lookupBody(const QString& name) const
     if (body)
     {
         BodyObject* o = new BodyObject(body);
-        QDeclarativeEngine::setObjectOwnership(o, QDeclarativeEngine::JavaScriptOwnership);
+        QQmlEngine::setObjectOwnership(o, QQmlEngine::JavaScriptOwnership);
         return o;
     }
     else

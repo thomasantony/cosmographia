@@ -71,9 +71,9 @@
 #include <QDesktopServices>
 #include <QNetworkDiskCache>
 #include <QNetworkRequest>
-#include <QDeclarativeEngine>
-#include <QDeclarativeComponent>
-#include <QDeclarativeContext>
+#include <QQmlEngine>
+#include <QQmlComponent>
+#include <QQmlContext>
 
 using namespace vesta;
 using namespace Eigen;
@@ -117,16 +117,14 @@ Cosmographia::Cosmographia() :
     m_catalogWrapper = new UniverseCatalogObject(m_catalog);
 
     // Initialize QML types
-    qmlRegisterUncreatableType<Cosmographia>("Cosmographia", 1, 0, "Cosmographia", "Use global cosmoApp");
-    qmlRegisterUncreatableType<UniverseView>("Cosmographia", 1, 0, "UniverseView", "Use global universeView");
-    qmlRegisterUncreatableType<HelpCatalog>("Cosmographia", 1, 0, "HelpCatalog", "Use global helpCatalog");
-    qmlRegisterUncreatableType<UniverseCatalogObject>("Cosmographia", 1, 0, "UniverseCatalog", "Use global universeCatalog");
-    qmlRegisterType<BodyObject>("Cosmographia", 1, 0, "Body");
-    qmlRegisterType<VisualizerObject>("Cosmographia", 1, 0, "Visualizer");
-    m_view3d->rootContext()->setContextProperty("cosmoApp", this);
-    m_view3d->rootContext()->setContextProperty("universeView", m_view3d);
-    m_view3d->rootContext()->setContextProperty("universeCatalog", m_catalogWrapper);
-    m_view3d->rootContext()->setContextProperty("helpCatalog", m_helpCatalog);
+    // QML registration - disabled for now as using QWidget approach
+    // qmlRegisterUncreatableType<Cosmographia>("Cosmographia", 1, 0, "Cosmographia", "Use global cosmoApp");
+    // qmlRegisterUncreatableType<UniverseView>("Cosmographia", 1, 0, "UniverseView", "Use global universeView");
+    // qmlRegisterUncreatableType<HelpCatalog>("Cosmographia", 1, 0, "HelpCatalog", "Use global helpCatalog");
+    // qmlRegisterUncreatableType<UniverseCatalogObject>("Cosmographia", 1, 0, "UniverseCatalog", "Use global universeCatalog");
+    // QML registration - disabled for now as using QWidget approach
+    // qmlRegisterType<BodyObject>("Cosmographia", 1, 0, "Body");
+    // qmlRegisterType<VisualizerObject>("Cosmographia", 1, 0, "Visualizer");
 
     setCentralWidget(m_view3d);
 
@@ -163,13 +161,12 @@ Cosmographia::setupMenuBar()
     QAction* saveScreenShotAction = new QAction("&Save Screenshot", this);
     QAction* copyScreenShotAction = new QAction("&Copy Screenshot to Clipboard", this);
     copyScreenShotAction->setShortcut(QKeySequence("Shift+Ctrl+C"));
+    fileMenu->addAction(saveScreenShotAction);
+#if FFMPEG_SUPPORT || QTKIT_SUPPORT
     QAction* recordVideoAction = new QAction("&Record Video", this);
     recordVideoAction->setShortcut(QKeySequence("Ctrl+R"));
-#if !FFMPEG_SUPPORT && !QTKIT_SUPPORT
-    recordVideoAction->setEnabled(false);
-#endif
-    fileMenu->addAction(saveScreenShotAction);
     fileMenu->addAction(recordVideoAction);
+#endif
     fileMenu->addSeparator();
     QAction* loadCatalogAction = fileMenu->addAction("&Open Catalog...");
     loadCatalogAction->setShortcut(QKeySequence("Ctrl+O"));
@@ -182,7 +179,9 @@ Cosmographia::setupMenuBar()
 
     connect(saveScreenShotAction, SIGNAL(triggered()), this, SLOT(saveScreenShot()));
     connect(copyScreenShotAction, SIGNAL(triggered()), m_view3d, SLOT(copyNextFrameToClipboard()));
+#if FFMPEG_SUPPORT || QTKIT_SUPPORT
     connect(recordVideoAction, SIGNAL(triggered()), this, SLOT(recordVideo()));
+#endif
     connect(loadCatalogAction, SIGNAL(triggered()), this, SLOT(loadCatalog()));
     connect(m_unloadLastCatalogAction, SIGNAL(triggered()), this, SLOT(unloadLastCatalog()));
     connect(quitAction, SIGNAL(triggered()), this, SLOT(close()));
@@ -482,7 +481,9 @@ Cosmographia::setupMenuBar()
     addAction(m_fullScreenAction);
     addAction(copyScreenShotAction);
     addAction(copyStateUrlAction);
+#if FFMPEG_SUPPORT || QTKIT_SUPPORT
     addAction(recordVideoAction);
+#endif
     addAction(pauseAction);
     addAction(fasterAction);
     addAction(slowerAction);
@@ -1224,10 +1225,10 @@ Cosmographia::activateCosmoUrl(const QString& url)
 }
 
 
+#if FFMPEG_SUPPORT || QTKIT_SUPPORT
 void
 Cosmographia::recordVideo()
 {
-#if FFMPEG_SUPPORT || QTKIT_SUPPORT
     if (m_view3d->isRecordingVideo())
     {
         m_view3d->videoEncoder()->close();
@@ -1271,8 +1272,8 @@ Cosmographia::recordVideo()
             m_view3d->startVideoRecording(encoder);
         }
     }
-#endif
 }
+#endif
 
 
 void

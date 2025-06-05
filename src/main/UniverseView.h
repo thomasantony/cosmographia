@@ -21,7 +21,7 @@
 #include "catalog/UniverseCatalog.h"
 #include "qtwrapper/BodyObject.h"
 #include "qtwrapper/VisualizerObject.h"
-#include <QDeclarativeView>
+#include <QWidget>
 #include <QTimer>
 #include <QDateTime>
 #include <QGestureEvent>
@@ -38,6 +38,7 @@ class ObserverAction;
 class Viewpoint;
 class MarkerLayer;
 class GalleryView;
+class UniverseGLWidget;
 
 class QGraphicsScene;
 
@@ -56,7 +57,7 @@ namespace vesta
     class GlareOverlay;
 }
 
-class UniverseView : public QDeclarativeView
+class UniverseView : public QWidget
 {
     Q_OBJECT
     Q_PROPERTY(double realTime READ realTime);
@@ -95,8 +96,10 @@ class UniverseView : public QDeclarativeView
 
     Q_PROPERTY(bool galleryVisible READ isGalleryVisible WRITE setGalleryVisible);
 
+#if FFMPEG_SUPPORT || QTKIT_SUPPORT
     Q_PROPERTY(bool recordingVideo READ isRecordingVideo NOTIFY recordingVideoChanged)
     Q_PROPERTY(double recordedVideoLength READ recordedVideoLength NOTIFY recordedVideoLengthChanged)
+#endif
 
     Q_ENUMS(StereoMode)
 
@@ -147,6 +150,7 @@ public:
 
     QDateTime simulationDateTime() const;
 
+#if FFMPEG_SUPPORT || QTKIT_SUPPORT
     void startVideoRecording(QVideoEncoder* encoder);
     void finishVideoRecording();
     bool isRecordingVideo() const
@@ -160,6 +164,7 @@ public:
     {
         return m_videoEncoder;
     }
+#endif
 
     vesta::Universe* universe() const
     {
@@ -482,8 +487,10 @@ private:
 
     vesta::counted_ptr<ObserverAction> m_observerAction;
 
+#if FFMPEG_SUPPORT || QTKIT_SUPPORT
     QVideoEncoder* m_videoEncoder;
     double m_videoRecordingStartTime;
+#endif
 
     TimeDisplayMode m_timeDisplay;
     bool m_wireframe;
@@ -499,6 +506,7 @@ private:
     int m_earthMapMonth;
 
     Leo3DState* m_leoState;
+    UniverseGLWidget* m_glWidget;
 };
 
 #endif // _UNIVERSE_VIEW_H_

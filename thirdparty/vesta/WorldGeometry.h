@@ -107,7 +107,8 @@ public:
 
     virtual AlignedEllipsoid ellipsoid() const
     {
-        return AlignedEllipsoid(m_ellipsoidAxes.cast<double>() * 0.5);
+        Eigen::Vector3d doubleAxes = m_ellipsoidAxes.cast<double>();
+        return AlignedEllipsoid(doubleAxes * 0.5);
     }
 
     /** Get the global base texture.
